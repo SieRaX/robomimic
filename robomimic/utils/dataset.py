@@ -32,6 +32,7 @@ class SequenceDataset(torch.utils.data.Dataset):
         hdf5_normalize_obs=False,
         filter_by_attribute=None,
         load_next_obs=True,
+        discretize_ratio=1,
     ):
         """
         Dataset class for fetching sequences of experience.
@@ -102,6 +103,7 @@ class SequenceDataset(torch.utils.data.Dataset):
 
         self.seq_length = seq_length
         assert self.seq_length >= 1
+        self.discretize_ratio = discretize_ratio
 
         self.goal_mode = goal_mode
         if self.goal_mode is not None:
@@ -426,7 +428,8 @@ class SequenceDataset(torch.utils.data.Dataset):
             index_in_demo=index_in_demo,
             keys=self.dataset_keys,
             num_frames_to_stack=self.n_frame_stack - 1, # note: need to decrement self.n_frame_stack by one
-            seq_length=self.seq_length
+            seq_length=self.seq_length,
+            discretize_ratio=self.discretize_ratio,
         )
 
         # determine goal index
@@ -440,6 +443,7 @@ class SequenceDataset(torch.utils.data.Dataset):
             keys=self.obs_keys,
             num_frames_to_stack=self.n_frame_stack - 1,
             seq_length=self.seq_length,
+            discretize_ratio=self.discretize_ratio,
             prefix="obs"
         )
 
@@ -450,6 +454,7 @@ class SequenceDataset(torch.utils.data.Dataset):
                 keys=self.obs_keys,
                 num_frames_to_stack=self.n_frame_stack - 1,
                 seq_length=self.seq_length,
+                discretize_ratio=self.discretize_ratio,
                 prefix="next_obs"
             )
 
@@ -460,13 +465,14 @@ class SequenceDataset(torch.utils.data.Dataset):
                 keys=self.obs_keys,
                 num_frames_to_stack=0,
                 seq_length=1,
+                discretize_ratio=self.discretize_ratio,
                 prefix="next_obs",
             )
             meta["goal_obs"] = {k: goal[k][0] for k in goal}  # remove sequence dimension for goal
 
         return meta
 
-    def get_sequence_from_demo(self, demo_id, index_in_demo, keys, num_frames_to_stack=0, seq_length=1):
+    def get_sequence_from_demo(self, demo_id, index_in_demo, keys, num_frames_to_stack=0, seq_length=1, discretize_ratio=1):
         """
         Extract a (sub)sequence of data items from a demo given the @keys of the items.
 
@@ -507,12 +513,18 @@ class SequenceDataset(torch.utils.data.Dataset):
             seq[k] = data[seq_begin_index: seq_end_index]
 
         seq = TensorUtils.pad_sequence(seq, padding=(seq_begin_pad, seq_end_pad), pad_same=True)
+
+        if type(seq) == dict:
+            for key, item in seq.items():
+                seq[key] = item[::discretize_ratio][:int(item.shape[0] / discretize_ratio)]
+        else:
+            raise NotImplementedError(f"seq is not a dict: {type(seq)}")
         pad_mask = np.array([0] * seq_begin_pad + [1] * (seq_end_index - seq_begin_index) + [0] * seq_end_pad)
         pad_mask = pad_mask[:, None].astype(bool)
 
         return seq, pad_mask
 
-    def get_obs_sequence_from_demo(self, demo_id, index_in_demo, keys, num_frames_to_stack=0, seq_length=1, prefix="obs"):
+    def get_obs_sequence_from_demo(self, demo_id, index_in_demo, keys, num_frames_to_stack=0, seq_length=1, discretize_ratio=1, prefix="obs"):
         """
         Extract a (sub)sequence of observation items from a demo given the @keys of the items.
 
@@ -533,6 +545,7 @@ class SequenceDataset(torch.utils.data.Dataset):
             keys=tuple('{}/{}'.format(prefix, k) for k in keys),
             num_frames_to_stack=num_frames_to_stack,
             seq_length=seq_length,
+            discretize_ratio=discretize_ratio,
         )
         obs = {k.split('/')[1]: obs[k] for k in obs}  # strip the prefix
         if self.get_pad_mask:
@@ -540,7 +553,7 @@ class SequenceDataset(torch.utils.data.Dataset):
 
         return obs
 
-    def get_dataset_sequence_from_demo(self, demo_id, index_in_demo, keys, num_frames_to_stack=0, seq_length=1):
+    def get_dataset_sequence_from_demo(self, demo_id, index_in_demo, keys, num_frames_to_stack=0, seq_length=1, discretize_ratio=1):
         """
         Extract a (sub)sequence of dataset items from a demo given the @keys of the items (e.g., states, actions).
         
@@ -560,6 +573,7 @@ class SequenceDataset(torch.utils.data.Dataset):
             keys=keys,
             num_frames_to_stack=num_frames_to_stack,
             seq_length=seq_length,
+            discretize_ratio=discretize_ratio,
         )
         if self.get_pad_mask:
             data["pad_mask"] = pad_mask

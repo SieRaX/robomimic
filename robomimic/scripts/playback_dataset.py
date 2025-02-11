@@ -263,7 +263,7 @@ def playback_dataset(args):
 
     for ind in range(len(demos)):
         ep = demos[ind]
-        print("Playing back episode: {}".format(ep))
+        print("Playing back episode: {}/{}".format(ep, len(demos)))
 
         if args.use_obs:
             playback_trajectory_with_obs(

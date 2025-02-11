@@ -11,6 +11,7 @@ import textwrap
 from copy import deepcopy
 from collections import OrderedDict
 
+import torch
 import torch.nn as nn
 
 import robomimic.utils.tensor_utils as TensorUtils
@@ -523,4 +524,51 @@ class RolloutPolicy(object):
         if goal is not None:
             goal = self._prepare_observation(goal)
         ac = self.policy.get_action(obs_dict=ob, goal_dict=goal)
+        if len(ac.shape) == 3:
+            ac = ac[:, 0, :]
         return TensorUtils.to_numpy(ac[0])
+
+class RolloutPolicy_MultiStep(RolloutPolicy):
+    def __init__(self, policy, obs_normalization_stats=None, Catt = 0.5):
+        super(RolloutPolicy_MultiStep, self).__init__(policy, obs_normalization_stats)
+        self.evaluate_policy = True
+        self.timestep = 0
+        self.Catt = Catt
+
+    def __call__(self, ob, goal=None):
+        try:
+            if self.evaluate_policy:
+                ob = self._prepare_observation(ob)
+                if goal is not None:
+                    goal = self._prepare_observation(goal)
+                ac = self.policy.get_action(obs_dict=ob, goal_dict=goal).detach()
+
+                self.evaluate_policy = False
+                if self.Catt is not None:
+                    temp_att = (ac[0, 1:] - ac[0, :-1]).norm(dim=1)
+                    temp_att = torch.cumsum(temp_att, dim=0)
+                    
+                    indices = torch.where(temp_att > self.Catt)[0]
+                    if len(indices) > 0:
+                        self.max_timestep = indices[0] + 1
+                    else:
+                        self.max_timestep = ac.shape[1]
+                else:
+                    self.max_timestep = ac.shape[1]
+                print(f"self.max_timestep: {self.max_timestep}")
+                self.ac = TensorUtils.to_numpy(ac)
+                res = self.ac[0, 0]
+                self.timestep = 1
+            else:
+                res = self.ac[0,self.timestep]
+                self.timestep += 1
+            if self.timestep == self.max_timestep:
+                self.evaluate_policy = True 
+                self.timestep = 0
+
+        except Exception as e:
+            print(f"self.max_timestep: {self.max_timestep}")
+            print(f"self.timestep: {self.timestep}")
+            raise Exception(f"Error in RolloutPolicy_MultiStep: {str(e)}")
+
+        return res

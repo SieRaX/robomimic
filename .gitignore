@@ -123,3 +123,9 @@ venv.bak/
 
 # private macros
 macros_private.py
+
+Affect_of_Control_horizon_multistep_BC/
+Affect_of_Control_horizon/
+Affect_of_discretization/
+bc_trained_models/
+bc_trained_subseq/

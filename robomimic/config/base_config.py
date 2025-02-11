@@ -196,6 +196,9 @@ class BaseConfig(Config):
         self.train.num_epochs = 2000    # number of training epochs
         self.train.seed = 1             # seed for training (for reproducibility)
 
+        self.train.discretize_ratio = 1
+        self.experiment.rollout.multi_step = False
+
     def algo_config(self):
         """
         This function populates the `config.algo` attribute of the config, and is given to the 

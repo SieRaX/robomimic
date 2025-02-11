@@ -1,0 +1,1 @@
+python multistep_bc_train.py --output ../Affect_of_Control_horizon_multistep_BC --dataset ../datasets/lift/ph/low_dim_v141_att_mask_included.hdf5

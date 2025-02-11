@@ -18,7 +18,7 @@ import robomimic.utils.env_utils as EnvUtils
 import robomimic.utils.torch_utils as TorchUtils
 from robomimic.config import config_factory
 from robomimic.algo import algo_factory
-from robomimic.algo import RolloutPolicy
+from robomimic.algo import RolloutPolicy, RolloutPolicy_MultiStep
 
 
 def create_hdf5_filter_key(hdf5_path, demo_keys, key_name):
@@ -410,7 +410,11 @@ def policy_from_checkpoint(device=None, ckpt_path=None, ckpt_dict=None, verbose=
     )
     model.deserialize(ckpt_dict["model"])
     model.set_eval()
-    model = RolloutPolicy(model, obs_normalization_stats=obs_normalization_stats)
+
+    if config.experiment.rollout.multi_step:
+        model = RolloutPolicy_MultiStep(model, obs_normalization_stats=obs_normalization_stats)
+    else:
+        model = RolloutPolicy(model, obs_normalization_stats=obs_normalization_stats)
     if verbose:
         print("============= Loaded Policy =============")
         print(model)
